@@ -1,0 +1,90 @@
+---
+title: "Homework-4"
+author: "Francesca Pecorari"
+date: "2023-11-30"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Creazione piano per RSM
+
+Creare un piano di Box-Behnken in ordine standard per per l'ottimizzazione della viscosità dinamica di un polimero considerando i seguenti 3 fattori: "Temp" (150,175,200), Agitation Rate (5,7.5,10), Pressure (15,20,25) e 3 punti al centro per un totale di 15 esperimenti
+
+ 
+```{r}
+library("Vdgraph")
+library("rsm") 
+
+my_BB <- bbd(3, n0 = 3, coding = list( x1 ~ (Temp - 150)/25, x2 ~ (Rate - 7.5)/2.5, x3 ~ (Polish - 20)/5), 
+             randomize = F)
+
+```
+
+## Aggiunta variabile risposta
+
+Aggiungere al data.frame del piano creato precedentemente una colonna con la variabile risposta "Viscosità (cP)" = [535,580,596,563,645,458,350,600,595,648,532,656,653,599,620].
+
+```{r}
+
+Viscosità = c(535,580,596,563,645,458,350,600,595,648,532,656,653,599,620)
+my_BB<-cbind(my_BB, Viscosità)
+```
+
+## Analisi piano
+
+Creare un modello di secondo ordine per l'analisi del piano, visulizzare le superfici di risposta. Quali condizioni operative raccomandereste se l'obiettivo della sperimentazione fosse quello di ottenere una viscosità più vicina possibile a 600 cP ?
+
+```{r}
+
+Vdgraph(my_BB[,3:5]) 
+abline(h=9, lty=2)
+```
+
+Il Variance disperision graph ci fa notare che il nostro piano non è ruotabile perché la varianza in predizione non è la stessa muovendosi in direzioni diverse di raggio crescente dal centro del dominio, questo si capisce dal fatto che media, massimo e minimo differiscono da 0.5 in poi.
+La linea tratteggiata nera indica il numero di coefficienti, notiamo che all'interno del dominio le linee di media, massimo e minimo rimangono sotto questo limite, questo significa che dal punto di vista dell'efficienza abbiamo un ottimo piano.
+
+Creiamo quindi un modello di secondo ordine
+
+```{r}
+
+mod <-rsm(Viscosità ~ SO(x1,x2,x3), data=my_BB)
+
+summary(mod)
+```
+
+Facendo il summary del modello notiamo che:
+
+- i coefficienti di x2 e x3 sono significativi
+- il coefficiente dell' interazione tra x1 e x3 è significativo
+- i coefficienti dei termini quadratici x1 e x3 sono significativi
+- abbaimo un p-value significativo per le interazioni e per i modelli quadratici
+- il lack of fit non sembra essere significativo
+- guardando i punti stazionari notiamo che i valori di x1 e x3 sono positivi, mentre quello di x2 è negativo
+- guardando gli autovalori si nota che non tutti sono valori negativi e che quindi questo potrebbe non essere un massimo effettivo
+
+Visualizziamo e commentiamo le superfici di isorisposta
+
+```{r}
+
+# ci permette di visualizzare le curve di isorisposta e lo fa a coppie, per visualizzarle tutte uso par
+par(mfrow= c(1,3))
+# contour(mod ,~x1+x2+x3) - senza colori
+contour(mod, ~ x1 + x2 + x3, image = TRUE)
+
+# superfici di risposta che ci permettono di avere una visualizzazione diversa 
+# il terzo fattore viene fissato a un valore scelto ( in questo caso al punto stazioneario valore di ottimo)
+persp(mod,~x1+x2+x3, at=xs(mod), col= c("red", "yellow", "green"))
+
+```
+
+Vediamo che le curve ottenute nel contour plot non sono concentriche, come vorremmo che fossero se avessimo trovato un massimo, vuol dire che siamo ancora lontani dall'obiettivo finale.
+Anche la rappresentazione tridimensionale ci indica che non ci troviamo vicino a un massimo e che probabilmente abbaimo incontrato un punto di sella.
+
+Visti i risultati ottenuti sarebbe opportuno calcolare la direzione di ascesa più ripida utilizzando la ridge analysis e ricominciare il processo dall'inizio, magari aggiungendo un secondo blocco di esperimenti.
+
+
+
+

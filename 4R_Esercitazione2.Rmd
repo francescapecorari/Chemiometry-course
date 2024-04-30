@@ -1,0 +1,272 @@
+---
+title: "4R_Esercitazione2"
+author: "Francesca Pecorari"
+date: "2024-01-19"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Report analisi di "Dataset alimenti.txt"
+
+## PCA
+
+```{r, echo=FALSE}
+originale<-read.table("Dataset alimenti.txt", header=TRUE,sep="\t")
+```
+
+```{r, echo=FALSE}
+dataset<-as.matrix(originale[,-c(1:2)])
+
+Alimento<-originale$Alimento
+Categoria<-originale$Categoria
+
+PCA<-prcomp(dataset, center= TRUE, scale=TRUE)
+
+#-- Estrazien delle varianze e della varianza cumulata
+
+varianze<-PCA$sdev^2
+
+varianzecum<-cumsum(varianze/sum(varianze)*100) 
+
+```
+
+### Scree plot e grafico della varianza cumulata
+
+```{r, echo=FALSE}
+
+par(mfrow=c(1,2))
+#-- Scree plot
+
+plot(varianze,pch=16,type="o", main="Scree plot")
+abline(h=1,col="gray")
+
+#-- Varianza cumulata %
+
+plot(varianzecum, pch=16, type="o", main="Varianza cumulata %")
+abline(h=c(50,75),col="gray")
+```
+
+Dai grafici deduciamo che sono sufficienti 3 componenti per descrivere la varianza del dataset. Osservando lo Scree plot non è possibile notare un gomito ben definito, ma si vede che la terza componente è l' ultima a mostrare varianza \> 1. 
+Dal plot della varianza cumulata notiamo che tra le 2 e le 3 componenti sono sufficienti a spiegare tra il 50 % e l' 80 % della varianza del dataset.
+
+
+### Plot loadings
+
+```{r, echo=FALSE}
+#-- Plot loadings
+
+plot(PCA$rotation[,1], PCA$rotation[,2], pch=16, main= "Plot Loadings")
+text(PCA$rotation[,1], PCA$rotation[,2],labels=colnames(dataset),cex=0.8,pos=3)
+abline(h=0,col="gray")
+abline(v=0,col="gray")
+```
+
+Interpretando il grafico, si potrebbe affermare che l'unica variabile a contribuire poco alla direzione di una delle nostre componenti principali, in particolare la PC2, sia la variabile Zuccheri, in quanto è proprio sullo zero.
+
+Si nota che le variabili Amido, Carboidrati e Proteine e Lipidi sembrano contribuire in modo simile alla direzione delle componenti; per il resto le variabili non sembrano avere valori di loading simili e questo indica, in generale, che non sono correlate e che avranno effetti diversi sulle componenti.
+
+
+### Plot scores
+
+```{r, echo=FALSE}
+
+#-- Plot scores a colori
+
+Color<-as.factor(Categoria)
+levels(Color)<-c("red","blue","green","purple","orange", "pink", "black", "yellow")
+Color<-as.character(Color)
+
+plot(PCA$x[,1], PCA$x[,2], type="n", main= "Plot scores")
+points(PCA$x[,1], PCA$x[,2],col=Color,cex=1.2,pch=16)
+abline(h=0,col="gray")
+abline(v=0,col="gray")
+
+legend("topright", legend=c(levels(as.factor(Categoria))), fill=levels(as.factor(Color)))
+
+```
+
+Dal grafico si nota che ci sono delle osservazioni delle categorie Verdura e Frutta vicine all' origine, questo indica che i loro valori sono prossimi alla media per la maggior parte delle variabili, inoltre sono posizionate vicine, il che significa che sono osservazioni simili.
+Per le categorie Latticini, Cereali, Frutta e Uova notiamo dei valori molto lontani dall'origine, che potrebbero essere dati estremi o outliers.
+
+
+### Biplot
+
+```{r, echo=FALSE}
+#-- Biplot
+
+biplot(PCA, choices =c(1,2), xlabs=Categoria)
+abline(h=0,col="gray")
+abline(v=0,col="gray")
+
+```
+
+Non ci sono vettori paralleli agli assi di nessuna delle due PC, questo significa che nessuna variabile originale contribuisce in modo esclusivo a nessuna delle componenti di questo grafico.
+La variabile originale che sembra avere la maggiore variabilità spiegata dalle PC utilizzate per costruire questo grafico è Acqua, mentre la variable Zucchero, quella con il vettore più corto, sarebbe rappresentata meglio da altre PC.
+
+
+### Grafico del peso delle variabili sperimentali su una PC
+
+Le variabili sperimentali che hanno peso maggiore per la PC1 sono: Acqua, Carboidrati e Amido
+
+```{r, echo=FALSE}
+#-- Peso delle variabili sperimentali su una PC
+
+plot(PCA$rotation[,1],type="h",xaxt="n",xlab="",ylab="Weights",main="PC1")
+axis(1,at=seq(1,ncol(dataset),1), labels=colnames(dataset),cex.axis=0.6, las=2)
+abline(h=0,col="gray")
+```
+
+Le variabili sperimentali che hanno peso maggiore per la PC2 sono: Proteine e Lipidi
+
+```{r, echo=FALSE}
+#-- Peso delle variabili sperimentali su una PC
+
+plot(PCA$rotation[,2],type="h",xaxt="n",xlab="",ylab="Weights",main="PC2")
+axis(1,at=seq(1,ncol(dataset),1), labels=colnames(dataset),cex.axis=0.6, las=2)
+abline(h=0,col="gray")
+```
+
+Le variabili sperimentali che hanno peso maggiore per la PC3 sono: Zuccheri e Lipidi
+
+```{r, echo=FALSE}
+#-- Peso delle variabili sperimentali su una PC
+
+plot(PCA$rotation[,3],type="h",xaxt="n",xlab="",ylab="Weights",main="PC3")
+axis(1,at=seq(1,ncol(dataset),1), labels=colnames(dataset),cex.axis=0.6, las=2)
+abline(h=0,col="gray")
+```
+
+## CLUSTERING GERARCHICO
+
+```{r, echo=FALSE}
+dataset<-as.matrix(originale[,-c(1:2)]) # Seleziono solo la parte di dataset con valori numerici
+
+Alimento<-originale$Alimento
+Categoria<-originale$Categoria
+
+
+#-- Normalizzazione per variabile (E' NECESSARIA!!!)
+
+dataNorm<-scale(dataset, center = TRUE, scale = TRUE)
+
+#-- Clustering gerarchico
+
+Dist<-dist(dataNorm, method="euclidean")
+
+HcC<- hclust(Dist, method="complete")
+HcS<- hclust(Dist, method="single")
+HcA<- hclust(Dist, method="average")
+HcW<- hclust(Dist, method="ward.D")
+
+```
+
+### Dendrogrammi
+
+```{r, echo=FALSE}
+DendC<-as.dendrogram(HcC)
+DendS<-as.dendrogram(HcS)
+DendA<-as.dendrogram(HcA)
+DendW<-as.dendrogram(HcW)
+
+par(mfrow=c(2,2))
+
+plot(DendC,main="Complete")
+plot(DendS,main="Single")
+plot(DendA,main="Average")
+plot(DendW,main="Ward's method")
+```
+
+Ci sono vari metodi per dividere gerarchicamente i dati in cluster e dipendono dal criterio linkage, nei grafici riportati si può notare, concentrandosi sulle altezze a cui avvengono le varie divisioni, come questi metodi lavorino facendo scelte differenti.
+
+```{r, echo=FALSE}
+#--- Selezione numero cluster
+
+Cut<-cutree(HcW, k= 7)
+
+Newdata<-data.frame(K7= Cut, originale)
+
+
+#--- Esplorazione risultati
+
+Box<-boxplot(as.factor(Newdata$Acqua)~Newdata$K7, xlab="K7", ylab="Acqua", main="Acqua")
+
+Cluster1<-Newdata[which(Newdata$K7==1),]
+
+```
+
+Dal boxplot si nota che in ogni cluster si ha una distribuzione diversa della variabile Acqua, probabilmente se i cluster corrispondessero effettivamente a alimenti di categorie diverse, questo si potrebbe spiegare dicendo che hanno tutti valori di acqua diversi e per questo si distinguono.
+
+
+## K-MEANS CLUSTERING
+
+```{r, echo=FALSE}
+#-- Normalizzazione
+
+dataNorm<-scale(dataset, center = TRUE, scale = TRUE)
+
+
+#-- Kmeans selezione numero cluster
+
+Tot<-NULL
+for(i in c(1:10)) {set.seed(7); km<- kmeans(dataNorm, centers=i,iter.max=50);
+Tot<-c(Tot,km$tot.withinss)}
+
+
+plot(Tot, xlab="K",ylab="Somma dei quadrati delle distanze intra-cluster", pch=16, type="o",
+     main="Elbow plot")
+
+# --  Numero di Cluster?
+
+KM7_1<- kmeans(dataNorm, centers=7,iter.max=50)
+
+Newdata2<-data.frame(KM7_1=KM7_1$cluster,originale)
+
+
+```
+
+Nell' interpretazione dell'elbow plot si cerca un "gomito" in cui la discesa della somma dei quadrati degli errori inizia a rallentare significativamente; idealmente si sceglie il numero di cluster appena prima del punto di gomito. 
+Nel nostro grafico, si potrebbe scegliere il valore 8 e avere quindi 7 cluster.
+
+## Risultato HCA proiettato sul grafico degli score della PCA
+
+```{r, echo=FALSE}
+#-- Plot scores a colori
+
+Color<-as.factor(Categoria)
+levels(Color)<-c("red","blue","green","purple","orange", "pink", "black", "yellow")
+Color<-as.character(Color)
+
+plot(PCA$x[,1], PCA$x[,2],type="n")
+points(PCA$x[,1], PCA$x[,2],col=Color,cex=1.2,pch=16)
+text(PCA$x[,1], PCA$x[,2],labels=Newdata$K7,cex=0.75,pos=3,offset=0.5)# con questo si rappresenta il risultato dell'HCA
+abline(h=0,col="gray")
+abline(v=0,col="gray")
+
+legend("topright", legend=c(levels(as.factor(Categoria))), fill=levels(as.factor(Color)))
+```
+
+Notiamo che osservazioni vicine, quindi simili, sono spesso assegnate allo stesso cluster.
+
+
+## Risultato KM proiettato sul grafico degli score della PCA
+
+```{r, echo=FALSE}
+Color<-as.factor(Categoria)
+levels(Color)<-c("red","blue","green","purple","orange", "pink", "black", "yellow")
+Color<-as.character(Color)
+
+
+plot(PCA$x[,1], PCA$x[,2],type="n")
+points(PCA$x[,1], PCA$x[,2],col=Color,cex=1.2,pch=16)
+text(PCA$x[,1], PCA$x[,2],labels=Newdata2$KM7_1,cex=0.75,pos=3,offset=0.5)# con questo si rappresenta il risultato del KM
+abline(h=0,col="gray")
+abline(v=0,col="gray")
+
+legend("topright", legend=c(levels(as.factor(Categoria))), fill=levels(as.factor(Color)))
+```
+
+Anche in questo caso, osservazioni vicine tendono ad essere assegnate allo stesso cluster.
+

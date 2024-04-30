@@ -1,0 +1,190 @@
+---
+title: "Homework 1"
+output: html_document
+date: "2023-11-13"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Esercizio 1
+
+Creare un modello MLR per predire Shoesize dalle altre 11 variabili del dataset people. Si possono interpretare i risultati?
+
+Inzializzazione della sessione di R
+
+```{r}
+library(mdatools)
+library(car)
+library(pls)
+```
+
+Carico il dataset e ne guardo la struttura, per avere un'idea preliminare di ciò con cui dovrò lavorare.
+
+```{r}
+people<-read.csv("people.csv",sep = ";")
+
+View(people)
+
+str(people)
+```
+
+L'oggetto caricato è un dataframe di 32 osservazioni di 12 variabili che riguardano caratteristiche fisiche, abitudini, quoziente intellettivo e guadagni di un campione di persone.
+
+Ci sono variabili di tipo continuo, ma anche variabili di tipo categoriale sempre codificate con valori numerici e per questo appaiono come int (Hairleng, Sex, Region).
+
+Altre informazioni sulle variabili sono:
+
+-   La variabile Height è riportata in centimentri;
+-   La variabile Weight è riportata in chilogrammi;
+-   La variabile Harileng è codificata nel seguente modo: corti: -1; lunghi: +1;
+-   La variabile Shoesize è riportata con la misurazione EU Standard;
+-   La variabile Age è riportata in anni;
+-   La variabile Income è riportata in euro/anno;
+-   La variabile Beer è riportata in L/anno;
+-   La variabile Wine è riportata in L/anno;
+-   La variabile Sex è codificata nel seguente modo: maschi: -1; femmine: +1;
+-   La variabile Swim è codificata nel seguente modo: Index (su 500 m);
+-   La variabile Region è codificata nel seguente modo: Scan: -1; Medit: +1;
+-   La variabile IQ è riportata con la misurazione Standard EU test;
+
+Procedo nella creazione di un modello di regressione lineare multipla che vede la variabile Shoesize come variabile risposta e le rimanenti 11 come variabili indipendenti. Faccio quindi il summary del modello per ottenere informazioni su di questo.
+
+```{r}
+mod<-lm(Shoesize~., data=people)
+summary(mod)
+```
+
+Dal summary emerge che poche tra le variabili selezionate sembrano essere significative nella predizione di Shoesize, in particolare sembrano essere significative le variabili Weight e Wine.
+
+L'R\^2 aggiustato è pari a 0.966, un valore molto alto, questo è dovuto al fatto che abbiamo utilizzato tutte le variabili a nostra disposizione.
+
+Probabilmente, andando a togliere alcune delle variabili si otterrebbe un valore di R\^2 più basso, a favore però di un modello più semplice.
+
+Proviamo ora a vedere, facendo il plot del modello, se le ipotesi di linearità, gaussianità e omoschedasticità sono rispettate.
+
+```{r}
+par(mfrow=c(2,2))
+plot(mod)
+```
+
+Dal plot del modello notiamo che i residui non sono propriamente disposti in modo casuale attorno allo zero e che non sono nemmeno ben disposti sulla linea della normale, specialmente su una coda, possiamo quindi affermare che il nostro modello fatichi a rispettare le ipotesi prima citate.
+
+Per avere ulteriore conferma della significatività o meno delle variabili andiamo a vedere gli intervalli di confidenza, che ci permettono di verificare la validità o meno dell'ipotesi nulla che una variabile non sia influente.
+
+```{r}
+confint.lm(mod)
+```
+
+Notiamo che gli unici intervalli che non attraversano lo zero sono quelli della variabile Weight e Wine, abbiamo quindi avuto la conferma di quanto dedotto dai risultati precedentemente analizzati.
+
+Proviamo ora a creare un modello con solo le variabili che sono risultate significative in quello precedente, passando così a un'analisi bivariata.
+
+```{r}
+mod1<-lm(Shoesize~Weight+Wine, data=people)
+summary(mod1)
+```
+
+Dai risultati ottenuti notiamo comunque un R\^2 molto alto, questo ci fa capire che gran parte della spiegazione era ottenuta dalle variabili che abbiamo utilizzato in questo modello, vediamo se le ipotesi vengono meglio rispettate in questo caso.
+
+```{r}
+par(mfrow=c(2,2))
+plot(mod1)
+```
+
+In questo caso i residui sembrano essere meglio distribuiti attorno allo zero, tuttavia la disposizione di questi nel qqplot è peggiore rispetto a prima.
+
+In generale si potrebbe preferire il secondo modello creato in quanto in grado di spiegare molta varianza di dati pur essendo più semplice.
+
+Come nota finale si potrebbe affermare che sia alquanto bizzarro che il peso, ma soprattutto la quantità di litri di vino bevuti in un anno influenzino il numero di scarpe di una persona.
+
+
+### Esercizio 2
+
+Si utilizzi la PCR sul dataset people per predirre Shoesize. Qual'è il numero corretto di componenti?
+
+La principal components regression (PCR) è una tecnica di regressione basata sulla principal component analysis (PCA).
+
+```{r}
+library(pls)
+
+PCR<-pcr(Shoesize~., data=people, scale = TRUE, validation = "LOO", ncomp=10, jackknifing=T, br=T)
+```
+
+Esaminiamo i risultati con un summary
+
+```{r}
+summary(PCR)
+```
+
+```{r}
+plot(RMSEP(PCR, estimate = "all"))
+```
+
+Dall'interpretazione di questo grafico non risulta trasparente il numero ottimale di componenti da selezionare, tuttavia dal summary della PCR notiamo che con una componente riusciamo a spiegare l' 87.45 % della varianza spiegata della nostra variabile Y Shoesize e che con due componenti si arriva a spiegarne il 95.35 %, senza avere poi aumenti particolarmente significativi aggiungendo altre componenti, da questo si può cominciare ad ipotizzare che il numero ottimale di componenti da considerare sia due. 
+
+Proseguiamo quindi nell'analisi con l'utilizzo di grafici che saranno di aiuto nel confermare la suddetta ipotesi.
+
+```{r}
+par(mfrow=c(1,2))
+
+p.1s <-selectNcomp(PCR, method = "onesigma", plot = TRUE) # one error standard rule
+p.rand <-selectNcomp(PCR, method = "randomization", plot = TRUE) # randomization test
+```
+
+Dall'interpretazione dei grafici possiamo dedurre che il miglior numero di componenti da considerare è 2. Sia  il grafico che utilizza la one error standard rule, sia il grafico che usa il randomization test ci indicano 2 come scelta ottimale, anche se sarebbe possibile considerare fino a 6 componenti.
+
+```{r}
+plot(PCR, plottype = "coef", ncomp=1:4, legendpos="bottomleft")
+```
+
+Dal grafico si nota che una volta aggiunta la seconda componente, continuare ad aumentarne il numero non porta nessuna variabile a subire un grande cambiamento nei valori dei coefficienti.
+Nel passaggio a più di una componente si allontanano dallo 0 i coefficienti delle variabili Height, Weight, Hairleng, Wine e Sex, ma si avvicinano Age, Income, Beer, Swim e Region (per Region si fa eccezione per il modello con 4 componenti che si allontana di nuovo dallo 0).
+Si può dire quindi che le prime variabili elencate sono tenute in maggiore considerazione dai modelli con 2 o più componenti rispetto al modello con una sola componente e che accade il contrario per quelle che si avvicinano allo zero. 
+
+```{r}
+B <- data.frame(coef(PCR, ncomp = 1, intercept = FALSE))
+barplot(t(B))
+```
+
+Nel grafico sopra riportato osserviamo un altro modo di visualizzare i coefficienti delle variabili a seconda del numero di componenti, in questo caso il grafico è stato costruito per il modello con una sola componente.
+
+### Esercizio 3
+
+Si provino a ottenere gli intervalli di confidenza per i coefficienti di regressione del modello pls usando il bootstraping.
+
+Creiamo un modello pls su cui lavorare
+
+```{r}
+people.pls <- plsr(Shoesize ~ .,
+                   scale=T,
+                   data = people,
+                   validation = "LOO",
+                   ncomp = 10,
+                   jackknife=T)
+
+```
+
+```{r}
+library(plsRglm)
+
+# devo ricostruire il modello
+# 100 repliche 
+# 5 gruppi di cancellazione
+cv.modpls<-cv.plsR(Shoesize~.,data=people,
+                   nt=10,K=5,
+                   NK=100,
+                   random=TRUE,verbose = FALSE)
+
+res<-plsR(Shoesize~.,data=people,nt=2,pvals.expli=TRUE)
+
+set.seed(2568)
+people.bootYX1=bootpls(res,R=1000,verbose=FALSE)
+boxplots.bootpls(people.bootYX1,indices=2:8)
+
+confints.bootpls(people.bootYX1, indices =2:8)
+
+```
+
+Calcolando gli intervalli di confidenza per il modello pls utilizzando il bootstrapping si può notare, sia dai valori ottenuti, sia dal boxplot, che le variabili Age e Income potrebbero non essere significative, molto vicina a questa interpretazione è anche la variabile Wine, che tuttavia non incrocia la soglia dello 0 se non con gli outliers.

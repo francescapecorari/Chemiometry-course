@@ -1,0 +1,224 @@
+---
+title: "Homework-3"
+author: "Francesca Pecorari"
+date: "2023-11-30"
+output: html_document
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+library("FrF2")
+library("BsMD")
+```
+
+## Creazione piano sperimentale
+
+Creare un piano sperimentale con 16 esperimenti secondo un fattoriale
+completo $2^4$ contenente i seguenti fattori: 
+
+• A = feed rate: slow o
+medium 
+• B = initial inoculant size (300g - 700g) 
+• C = feed substrate
+concentration (40 g/L - 60 g/L) 
+• D = dissolved oxygen set-point
+(4mg/L - 6 mg/L)
+
+```{r}
+
+A = c(-1,1,-1,1,-1,1,-1,1,-1,1,-1,1,-1,1,-1,1)
+B = c(-1,-1,1,1,-1,-1,1,1,-1,-1,1,1,-1,-1,1,1)
+C = c(-1,-1,-1,-1,1,1,1,1,-1,-1,-1,-1,1,1,1,1)
+D = c(-1,-1,-1,-1,-1,-1,-1,-1,1,1,1,1,1,1,1,1)
+
+mydf<- data.frame(A,B,C,D)
+
+```
+
+## Aggiunta variabile risposta
+
+Aggiungere al data.frame del piano creato precedentemente una colonna
+con la variabile risposta Resa = [60, 59, 63, 61, 69, 61, 94, 93, 56,
+63, 70, 65, 44, 45, 78, 77].
+
+```{r}
+Resa = c(60, 59, 63, 61, 69, 61, 94, 93, 56, 63, 70, 65, 44, 45, 78, 77)
+
+mydf<- cbind(mydf, Resa)
+
+```
+
+## Analisi piano
+
+Dopo aver scelto un modello per l'analisi del piano creato
+precedentemente, si identifichino gli effetti significativi utilizzando
+almeno due strumenti grafici diversi.
+
+Partiamo considerando il modello con tutte le interazioni.
+
+```{r}
+mod <- lm(Resa ~ A*B*C*D,
+          data=mydf)# Modello con tutte le interazioni
+
+summary(mod)
+```
+
+Utilizzando un modello che considera tutte le interazioni possibili tra
+le variabili, non ci rimangono gradi di libertà per stimare l'incertezza
+dei coefficienti, proviamo quindi a considerare un modello che non tiene
+conto delle interazioni a quattro tra i fattori in modo da ottenere un
+grado di libertà per capire se la stima fatta è significativa.
+
+```{r}
+mod1 <- lm(Resa ~ (A+B+C+D)^3,
+          data=mydf)# Modello con le interazioni a tre
+
+summary(mod1)
+```
+
+La stima dell'errore del coefficiente è uguale per tutti i coefficienti,
+questo è dovuto alla matrice di dispersione del modello, i cui termini
+sulla diagonale sono tutti uguali. Notiamo che è stato possibile
+calcolare l' R\^2 aggiustato e che questo è molto alto, quasi uguale a
+uno. Riusciamo anche ad avere un'idea di quali coefficienti siano
+significativi:
+
+-   B: initial inoculant size (molto significativa)
+-   C: feed substrate concentration
+-   D: dissolved oxygen set-point
+-   l'interazione tra A (feed rate) e D
+-   l'interazione tra B e C
+-   l'interazione tra B e D
+-   l'interazione tra B e C
+-   l'interazione tra C e D
+-   l'interazione tra A, B e C
+-   l'interazione tra A, B e D
+
+Valutiamo la bontà del modello di regressione facendo un plot di valori
+reali vs. valori predetti e, in questo caso, lo facciamo in
+autopredizione.
+
+```{r}
+plot(mydf$Resa, predict(mod1), cex=2)
+abline(0,1, cex=1)
+```
+
+Il nostro modello funziona molto bene in autopredizione,
+tutti i valori sono posizionati sulla bisettrice del nostro sistema.
+
+
+#### Grafico dei coefficienti con intervallo di confidenza
+
+```{r}
+
+#Grafico dei coefficienti con intervallo di confidenza
+out<-summary(mod1)
+c0 <- coef(mod1)[-1]
+cc <- confint(mod1, level = 0.90)[-1,] # ottenere la stima dell'intervallo di confidenza impostando il livello di confidenza
+b <- drop(barplot(c0,ylim=range(c(cc)), col= "lightgreen", main= "Dinamite plot"))
+arrows(b,c0,b,cc[,1],angle=90,length=0.05) ## limite inferiore
+arrows(b,c0,b,cc[,2],angle=90,length=0.05) ## limite superiore
+abline(0,0)
+
+```
+
+Dal dinamite plot notiamo che vengono confermate le considerazioni fatte
+interpretando il summary, vediamo che i coefficienti considerati non
+significativi sono quelli che hanno le barre che attraversano lo zero.
+
+#### Grafico di Lenth
+
+Un altro modo per verificare la significatività dei coefficienti che è
+valido anche quando non si hanno a disposizione gradi di libertà o stime
+esterne è il metodo di Lenth. Il metodo è non paramentrico, questo
+significa che non fa assunzioni sulla distribuzione dei campioni.
+
+```{r}
+# Metodo di Lenth
+
+# Grafico
+LenthPlot(mod1,cex.fac = 0.5) 
+```
+
+Il grafico mostra delle barre verticali che rappresentano la stima dei
+coefficienti e delle linee tratteggiate orizzontali corrispondenti a
+degli pseudo-intervalli di confidenza che si utilizzano per stabilire
+quali coefficienti sono significativi.
+
+Notiamo che il coefficiente per B risulta essere sicuramente
+significativo, in quanto supera anche la seconda soglia degli
+pseudo-intervalli. In questo caso, possiamo affermare che un numero
+inferiore di coefficienti viene considerato significativo rispetto ai
+risultati ottenuti con il summary, ad esempio, nessuna delle interazione
+a tre è considerata come significativa.
+
+#### Grafici degli effetti
+
+```{r}
+
+MEPlot(mod1) # effetti principali
+```
+
+Sopra è rappresentato il plot degli effetti principali.
+Si possono fare le sefuenti osservazioni:
+
+- l'effetto di A è minimo e leggermente negativo
+- l'effetto di B è quello più importante ed è positivo
+- l' effetto di C è positivo
+- l'effetto di D è negativo
+
+Si può ottenere anche il plot delle interazioni.
+
+```{r}
+IAPlot(mod1) # interazioni
+```
+
+Si osserva che:
+
+- tra i fattori A e B non sembra esserci interazione, tra A e C sembra esserci un leggero sinergismo e tra A e D un leggero antagonismo
+- tra i fattori B, C e B, D c'è sinergismo
+- tra i fattori C e D c'è antagonismo
+
+Lo si vede in maniera più chiara costruendo i singoli interaction plots.
+
+```{r}
+
+#Interactions plot
+
+par(mfrow=c(2,3))
+interaction.plot(mydf$A, mydf$B, mydf$Resa, type = "l",
+                 xlab = "A",trace.label = "B",
+                 ylab = "Resa media")
+
+interaction.plot(mydf$A, mydf$C,mydf$Resa, type = "l",
+                 xlab = "A",trace.label = "C",
+                 ylab = "Resa media")
+
+interaction.plot(mydf$A, mydf$D, mydf$Resa, type = "l",
+                 xlab = "A",trace.label = "D",
+                 ylab = "Resa media")
+
+interaction.plot(mydf$B, mydf$C, mydf$Resa, type = "l",
+                 xlab = "B",trace.label = "C",
+                 ylab = "Resa media")
+
+interaction.plot(mydf$B, mydf$D, mydf$Resa, type = "l",
+                 xlab = "B",trace.label = "D",
+                 ylab = "Resa media")
+
+interaction.plot(mydf$C, mydf$D, mydf$Resa, type = "l",
+                 xlab = "C",trace.label = "D",
+                 ylab = "Resa media")
+```
+
+## (Opzionale)
+
+Supponiamo di avere a disposizione solo 8 esperimenti. Si riporti in
+dettaglio il piano degli esperimenti che usereste con relativa struttura
+di confusione.

@@ -1,0 +1,788 @@
+---
+title: "Homework-2"
+author: "Francesca Pecorari"
+date: "2023-11-21"
+output: html_document
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Esercizio 1
+
+Caricare il dataset wineclass e utilizzare il foglio train per costruire i modelli SIMCA per le 3 classi e il modello SIMCA multiclasse.
+Utilizzare il foglio test per validare i modelli creati.
+Commentare i risultati ottenuti.
+
+```{r}
+# Loading
+library("readxl")
+library(MASS)
+library(mdatools)
+
+wineclass<- read_excel("winesclass.xls")
+wineclass$Category<-as.factor(wineclass$Category)
+```
+
+Dopo aver caricato il dataset, procediamo con la separazione in train set, parte di dati che useremo per l'apprendimento e test set, porzione di dati che verrà usata per la validazione.
+
+```{r}
+set.seed(123)
+
+train <- sample(1:90, 67) 
+test <- (1:90)[-train]
+
+wineclass_train<-wineclass[train,]
+wineclass_test<-wineclass[test,]
+```
+
+Mettiamo circa il 75% dei dati nel set di training.
+
+```{r}
+# Creare gli oggetti "Xc" contenente solo i predittori, e "cc" contenente la variabile Y, del training set creato precedentemente
+
+Xc <-wineclass_train[,3:15] # Xcalibration
+cc <- wineclass_train$Category 
+
+# Creare gli oggetti "Xt" contenente solo i predittori, e "ct" contenente la variabile Y, del test set creato precedentemente
+
+Xt <-wineclass_test[,3:15]
+ct <-wineclass_test$Category
+
+# Creare gli oggetti "X.OLO", "X.GR", e "X.ERA" come subsets di Xc contenenti solo una classe, siccome SIMCA lavora su elementi della stessa classe
+
+X.OLO <-wineclass_train[wineclass_train$Category=="OLO", 3:15]
+X.GR <-wineclass_train[wineclass_train$Category=="GR", 3:15]
+X.ERA <-wineclass_train[wineclass_train$Category=="ERA", 3:15]
+```
+
+Usiamo la PCA per avere un'idea iniziale di quante componenti utilizzare.
+
+```{r}
+PCA_OLO<-prcomp(X.OLO, center=T, scale=T)
+
+#-- Estrazione delle varianze e della varianza cumulata
+
+varianze_OLO<-PCA_OLO$sdev^2
+
+varianzecum_OLO<-cumsum(varianze_OLO/sum(varianze_OLO)*100) 
+
+par(mfrow=c(1,2))
+
+#-- Scree plot
+
+plot(varianze_OLO, pch=16, type="o")
+abline(h=1, col="gray")
+
+#-- Varianza cumulata %
+
+plot(varianzecum_OLO, pch=16, type="o")
+abline(h=c(50,75), col="gray")
+
+```
+
+Dall'osservazione di questi grafici possiamo dedurre che tre sia il numero di componenti da considerare per il SIMCA sulla classe OLO.
+
+Applichiamo lo stesso ragionamento alle altre due classi.
+
+```{r}
+PCA_GR<-prcomp(X.GR, center=T, scale=T)
+
+#-- Estrazione delle varianze e della varianza cumulata
+
+varianze_GR<-PCA_GR$sdev^2
+
+varianzecum_GR<-cumsum(varianze_GR/sum(varianze_GR)*100) 
+
+par(mfrow=c(1,2))
+
+#-- Scree plot
+
+plot(varianze_GR, pch=16, type="o")
+abline(h=1, col="gray")
+
+#-- Varianza cumulata %
+
+plot(varianzecum_GR, pch=16, type="o")
+abline(h=c(50,75), col="gray")
+
+```
+
+Per la classe GR si decide di utilizzare 4 componenti principali.
+
+```{r}
+PCA_ERA<-prcomp(X.ERA, center=T, scale=T)
+
+#-- Estrazione delle varianze e della varianza cumulata
+
+varianze_ERA<-PCA_ERA$sdev^2
+
+varianzecum_ERA<-cumsum(varianze_ERA/sum(varianze_ERA)*100) 
+
+par(mfrow=c(1,2))
+#-- Scree plot
+
+plot(varianze_ERA, pch=16, type="o")
+abline(h=1, col="gray")
+
+#-- Varianza cumulata %
+
+plot(varianzecum_ERA, pch=16, type="o")
+abline(h=c(50,75), col="gray")
+
+```
+
+Per la classe ERA si decide di utilizzare 3 componenti principali.
+
+### Modelli SIMCA
+
+Precediamo ora con la costruzione dei modelli SIMCA per ogni classe.
+
+#### OLO
+
+```{r}
+# Modello SIMCA per la classe OLO
+
+m_OLO <- simca(X.OLO, "OLO", ncomp = 3, cv=1)
+summary(m_OLO)
+```
+
+Dal summary si vede che il 100 % della varianza è spiegato e che ci sono 21 true positive e un false negative.
+La sensitivity e l'accuracy sono molto alte, per specificity si ha NA perché non abbiamo campioini di altre classi.
+
+```{r}
+# posso esplorare i parametri anche graficamente
+plot(m_OLO)
+```
+
+Si nota dal Distance plot che tutti gli oggetti tranne uno sono accomodati dal modello e che l'unico valore che è nella zona degli oggetti estremi dovrebbe essere rifiutato, infatti avevamo ottenuto un falso negativo.
+Notiamo che la varianza cumulata spiegata è già molto alta con la prima componente, ma che sale ulteriormente con l'aggiunta della seconda e della terza.
+
+```{r}
+par(mfrow=c(2,2))
+plotSensitivity(m_OLO, show.labels = TRUE)
+plotMisclassified(m_OLO, show.labels = TRUE)
+plotPredictions(m_OLO$res$cal, main = "Predictions (cal)")
+plotPredictions(m_OLO$res$cv, main = "Predictions (cv)")
+```
+
+Si può notare che la sensitivity in calibration rimane costante con tutte e tre le componenti e che questo accade anche per il numero di misclassified, che rimane sempre vicino a zero.
+In cross validation le cifre di merito peggiorano leggermente e lo fanno in particolare sulla terza componente.
+I grafici delle predictions mostrano che nella fase di calibration solo un'osservazione è stata considerata non appartenente alla classe, mentre con la cross validation il numero sale a cinque.
+
+Dal momento che la performance sembra peggiorare con l'aggiunta della terza componente è possibile dimunuire il numero di componenti a due.
+Si può procedere anche facendo una prediction con un test set a partire dal nostro modello.
+
+```{r}
+# posso cambiare il numero di componenti
+
+m_OLO<-selectCompNum(m_OLO, ncomp = 2)
+
+### Prediction with a test set
+res_OLO <- predict(m_OLO, Xt, ct)
+
+summary(res_OLO) # ci fa vedere anche i risultati con le altre componenti
+```
+
+Dal summary notiamo che la prima componente spiega già il 99.84 % della varianza, con due componenti si arriva al 99.98 %.
+Con una componente si ottengono 6 true positive, 12 true negative, 3 false positive e 2 false negative, i numeri migliorano ulteriormente passando anche alla seconda componente, con solo un false positive e un false negative.
+I valori di specificity, sensitivity e accuracy sono alti con una componente, ma diventano migliori e vicini allo 0.1 con la seconda componente.
+
+```{r}
+
+par(mfrow = c(2, 2))
+
+plotSpecificity(res_OLO, show.labels = TRUE)
+plotSensitivity(res_OLO, show.labels = TRUE)
+plotMisclassified(res_OLO, show.labels = TRUE)
+plotPredictions(res_OLO)
+```
+
+Sopra vediamo una rappresentazione grafica di ciò che è stato discusso prima, la specificity migliora con due componenti, come anche la sensitivity, inoltre diminuisce il valore di misclassified.
+Dal grafico delle predictions notiamo che solo uno tra i valori appartenenti alla classe OLO non è stato riconosciuto e che solo uno delle altre classi è stato classificato come appartente a OLO.
+
+```{r}
+#Matrice di confusione
+show(getConfusionMatrix(res_OLO))
+```
+
+La confusion matrix ci indica numericamente quanto possiamo vedere nel grafico delle predictions.
+
+#### GR
+
+```{r}
+# Modello SIMCA per la classe GR
+
+m_GR <- simca(X.GR, "GR", ncomp = 4, cv=1)
+summary(m_GR)
+```
+
+Dal summary si vede che il 99.99 % della varianza è spiegato e che sensitivity e accuracy sono pari a uno, infatti abbiamo solo true positive.
+
+```{r}
+# posso esplorare i parametri anche graficamente
+
+plot(m_GR)
+```
+
+Dal distance plot notiamo che tutti gli oggetti sono ben accomodati dal modello, mentre dal grafico della varianza cumulata si vede il valore, già molto alto con una componente, arrivare al 100 %.
+
+```{r}
+par(mfrow = c(2, 2))
+
+plotSensitivity(m_GR, show.labels = TRUE)
+plotMisclassified(m_GR, show.labels = TRUE)
+plotPredictions(m_GR$res$cal, main = "Predictions (cal)")
+plotPredictions(m_GR$res$cv, main = "Predictions (cv)")
+```
+
+Nella fase di calibration la sensitivity aumenta all'aumentare delle componenti considerate, fino ad arrivare a 1, in cross validation, invece, la sensitivity aumenta con la seconda componenete, rimanendo sempre inferiore ai valori ottenuti in calibration, ma diminuisce di nuovo con la terza componente, per poi rimanere costante con la quarta.
+I misclassified nella fase di calibration sono pochi e arrivano a zero con la quarta componente, in cross validation raggiungono il valore minore (leggermente superiore a quello in calibration) con la seconda componente.
+Le prediction in calibration sono tutte corrette, in fase di cross validation, invece, cinque oggetti non sono classificati come appartenenti alla classe GR.
+
+Visti i dati in cross validation si può provare a diminuire il numero di componenti e a fare una prediction con un test set.
+
+```{r}
+# posso cambiare il numero di componenti
+
+m_GR<-selectCompNum(m_GR, ncomp = 2)
+
+### Prediction with a test set
+res_GR <- predict(m_GR, Xt, ct)
+
+summary(res_GR) # ci fa vedere anche i risultati con le altre componenti
+```
+
+La varianza cumulata spiegata con due componenti è pari al 99.98 %, notiamo un numero elevato di false positive, si ha infatti una specificity pari a 0.5, il valore della sensitivity è alto e si ha un'accuracy superiore a 0.6. 
+
+```{r}
+par(mfrow = c(2, 2))
+plotSpecificity(res_GR, show.labels = TRUE)
+plotSensitivity(res_GR, show.labels = TRUE)
+plotMisclassified(res_GR, show.labels = TRUE)
+plotPredictions(res_GR)
+```
+
+Dal grafico si nota che la specificity aumenterebbe con un numero maggiore di componenti, tuttavia la decisione sul modello va presa sul trainig set e non sul test set.
+La sensitivity aumenta ed è buona con due componenti.
+Il numero di misclassified diminuisce, ma rimane comunque più alto di quello che si otterrebbe con un numero di componenti superiore a due.
+Tutti i campioni della classe GR tranne uno sono assegnati in modo corretto, tuttavia vengono considerati appartenenti a questa classe anche numerosi oggetti delle altre due classi.
+
+Questo si evince anche dalla matrice di confusione: 7 oggetti della classe ERA vengono identificati come appartenenti alla classe GR, questo ci fa capire che le due classi potrebbero essere simili.
+
+```{r}
+
+#Matrice di confusione
+show(getConfusionMatrix(res_GR))
+```
+
+#### ERA
+
+```{r}
+# Modello SIMCA per la classe ERA
+
+m_ERA <- simca(X.ERA, "ERA", ncomp = 3, cv=1)
+summary(m_ERA)
+```
+
+La percentuale di varianza spiegata è pari al 99.96 %, è presente solamente un false negative e i valori di senitivity e accuracy sono molto alti.
+Queste metriche peggiorano leggermente in cross validation.
+
+```{r}
+# posso esplorare i parametri anche graficamente
+
+plot(m_ERA)
+```
+
+Dal distance plot notiamo che solo uno dei valori è nella zona degli extreme, come si poteva intuire dall'unico false negative ottenuto, la varianza spiegata è molto alta già per la prima componente, ma migliora ulteriormente con l'aggiunta della altre due.
+
+```{r}
+par(mfrow = c(2, 2))
+
+plotSensitivity(m_ERA, show.labels = TRUE)
+plotMisclassified(m_ERA, show.labels = TRUE)
+plotPredictions(m_ERA$res$cal, main = "Predictions (cal)")
+plotPredictions(m_ERA$res$cv, main = "Predictions (cv)")
+```
+
+In fase di calibration la sensitivity migliora con l'aumentare delle componenti considerate, mentre in cross validation i valori sono costanti per la seconda componente e peggiorano leggermente per la terza componente, per la prima componente si ha lo stesso valore sia in calibration che in cross validation.
+Lo stesso accade per i valori misclassified.
+Le predictions in calibration hanno solo un valore non riconosciuto, mentre in cross validation sono tre i valori a non essere classificati in modo corretto.
+
+Dati i risultati si potrebbe considerare opportuno diminuire il numero di componenti considerate a due e fare una prediction con un test set.
+
+```{r}
+# posso cambiare il numero di componenti
+
+m_ERA<-selectCompNum(m_ERA, ncomp = 2)
+
+### Prediction with a test set
+res_ERA <- predict(m_ERA, Xt, ct)
+
+summary(res_ERA) # ci fa vedere anche i risultati con le altre componenti
+```
+
+La varianza spiegata con due componenti non diminuisce rispetto a quella che si ottiene con tre.
+Con due componenti si ottengono 3 falsi positivi e 3 falsi negativi, rispetto ai 5 e 2 che si ottengono con una sola componente, i valori di specificity e accuracy migliorano, ma la sensibility peggiora.
+
+```{r}
+par(mfrow = c(2, 2))
+
+plotSpecificity(res_ERA, show.labels = TRUE)
+plotSensitivity(res_ERA, show.labels = TRUE)
+plotMisclassified(res_ERA, show.labels = TRUE)
+plotPredictions(res_ERA)
+```
+
+Dai grafici notiamo quanto detto prima per la specificity e la sensitivity.
+I misclassified diminuiscono con l'aumentare delle componenti e si hanno dei risultati abbastanza buoni in prediction, con tre oggetti della classe ERA non riconosciuti correttamente e tre della classe GR attribuiti a questa erroneamente, lo si vede anche dalla matrice di confusione.
+
+```{r}
+
+#Matrice di confusione
+show(getConfusionMatrix(res_ERA))
+```
+
+#### SIMCA multiclasse
+
+```{r}
+
+## SIMCA multiclasse 
+
+mm <- simcam(list(m_OLO, m_GR, m_ERA))
+# trasforma un approccio con una sola classe in un multiclasse e ottengo le cifre di merito modellanti per ognuna della classi
+summary(mm)
+```
+
+Tutte le classi sono state considerate con 2 componenti e riescono ad ottenere dei buoni valori per le cifre di merito.
+
+Procediamo con una predizione fatta con test set.
+```{r}
+par(mfrow=c(1,1))
+res <- predict(mm, Xt, ct)
+plotPredictions(res) 
+```
+
+Il plot delle predictions è un'unione di tre plot di prediction, uno per ogni categoria, si nota che alcuni oggetti sono classificati in modo errato, in particolare per le categorie ERA e GR, come si era visto anche precedentemente, inoltre, altri oggetti non sono riconosciuti come appartenenti ad alcuna classe.
+La matrice di confusione ci riporta i numeri esatti.
+
+```{r}
+show(getConfusionMatrix(res))
+```
+
+Il model distance plot ci indica quanto simili sono i modelli.
+
+```{r}
+
+#Model distance plot.
+# Se > 3 indica modelli significativamente differenti
+# Se ~1 indica due modelli virtualmente identici
+par(mfrow = c(1, 3))
+
+plotModelDistance(mm, 1)
+plotModelDistance(mm, 2)
+plotModelDistance(mm, 3)
+
+```
+
+Dai grafici sopra notiamo che nessuno dei modelli è significativamente diverso dall'altro.
+
+Il discrimination plot mostra la diversa abilità di una variabile di discrimiare tra due classi.
+```{r}
+
+#Variable discrimination plot
+par(mfrow = c(1, 3))
+plotDiscriminationPower(mm, c(1, 3), show.labels = TRUE)
+plotDiscriminationPower(mm, c(2, 3), show.labels = TRUE)
+plotDiscriminationPower(mm, c(1, 2), show.labels = TRUE)
+```
+
+- Per le classi OLO e ERA la varibaile con un valore discriminante maggiore è Flavoniods.
+- Per le classi GR e ERA la varibaile con un valore discriminante maggiore è Hue.
+- Per le classi OLO e GR la varibaile con un valore discriminante maggiore è Flavoniods.
+
+Il Cooman plot ci indica i limiti critici, delinea lo spazio in cui dobbiamo rifiutare i campioni estremi ed è utile per vedere come performano i modelli di modellamento di classe.
+```{r}
+par(mfrow = c(1, 3))
+plotCooman(mm, c(1, 3), show.labels = TRUE)
+plotCooman(mm, c(2, 3), show.labels = TRUE)
+plotCooman(mm, c(1, 2), show.labels = TRUE)
+```
+
+Notiamo che i nostri modelli sono in grado di assegnare gran parte dei dati alla classe giusta, tuttavia, è possibile che individuino come appartenente a una classe anche elementi a questa esterni.
+
+
+### Esercizio 2
+
+Ripetere l'esercizio 1 usando usando il dataset wine dopo aver creato con uno split casuale i due set "train" e "test".
+I risultati sono diversi dall'esercizio 1?
+
+```{r}
+wines<- read_excel("wines.xls")
+wines$Category<-as.factor(wines$Category)
+```
+
+Dopo aver caricato il dataset, procediamo con la separazione in train set, parte di dati che useremo per l'apprendimento e test set, porzione di dati che verrà usata per la validazione.
+
+```{r}
+set.seed(123)
+
+train1 <- sample(1:178, 134) 
+test1 <- (1:178)[-train1]
+
+wines_train<-wines[train1,]
+wines_test<-wines[test1,]
+```
+
+Mettiamo circa il 75% dei dati nel set di training.
+
+```{r}
+# Creare gli oggetti "Xc1" contenente solo i predittori, e "cc1" contenente la variabile Y, del training set creato precedentemente
+
+Xc1 <-wines_train[,3:15] # Xcalibration
+cc1 <- wines_train$Category 
+
+# Creare gli oggetti "Xt1" contenente solo i predittori, e "ct1" contenente la variabile Y, del test set creato precedentemente
+Xt1 <-wines_test[,3:15]
+ct1 <-wines_test$Category
+
+# Creare gli oggetti "X.OLO_1", "X.GR_1", e "X.ERA_1" come subsets di Xc1 contenenti solo una classe
+# posso aggiungere le parentesi quadre anche dopo per continuare a subsettare
+
+X.OLO_1 <-wines_train[wines_train$Category=="OLO", 3:15]
+X.GR_1 <-wines_train[wines_train$Category=="GR", 3:15]
+X.ERA_1 <-wines_train[wines_train$Category=="ERA", 3:15]
+
+```
+
+Usiamo la PCA per avere un'idea iniziale di quante componenti utilizzare.
+
+```{r}
+PCA_OLO_1<-prcomp(X.OLO_1, center=T, scale=T)
+
+#-- Estrazione delle varianze e della varianza cumulata
+
+varianze_OLO_1<-PCA_OLO_1$sdev^2
+
+varianzecum_OLO_1<-cumsum(varianze_OLO_1/sum(varianze_OLO_1)*100) 
+
+par(mfrow=c(1,2))
+
+#-- Scree plot
+
+plot(varianze_OLO_1, pch=16, type="o")
+abline(h=1, col="gray")
+
+#-- Varianza cumulata %
+
+plot(varianzecum_OLO_1, pch=16, type="o")
+abline(h=c(50,75), col="gray")
+
+```
+
+Dall'osservazione di questi grafici possiamo dedurre che quattro sia il numero di componenti da considerare inizialmente per il SIMCA sulla classe OLO.
+
+Applichiamo lo stesso ragionamento alle altre due classi.
+
+```{r}
+PCA_GR_1<-prcomp(X.GR_1, center=T, scale=T)
+
+#-- Estrazione delle varianze e della varianza cumulata
+
+varianze_GR_1<-PCA_GR_1$sdev^2
+
+varianzecum_GR_1<-cumsum(varianze_GR_1/sum(varianze_GR_1)*100) 
+
+par(mfrow=c(1,2))
+
+#-- Scree plot
+
+plot(varianze_GR_1, pch=16, type="o")
+abline(h=1, col="gray")
+
+#-- Varianza cumulata %
+
+plot(varianzecum_GR_1, pch=16, type="o")
+abline(h=c(50,75), col="gray")
+
+```
+
+Per la classe GR si decide di utilizzare cinque componenti principali.
+
+```{r}
+PCA_ERA_1<-prcomp(X.ERA_1, center=T, scale=T)
+
+#-- Estrazien delle varianze e della varianza cumulata
+
+varianze_ERA_1<-PCA_ERA_1$sdev^2
+
+varianzecum_ERA_1<-cumsum(varianze_ERA_1/sum(varianze_ERA_1)*100) 
+
+par(mfrow=c(1,2))
+
+#-- Scree plot
+
+plot(varianze_ERA_1, pch=16, type="o")
+abline(h=1, col="gray")
+
+#-- Varianza cumulata %
+
+plot(varianzecum_ERA_1, pch=16, type="o")
+abline(h=c(50,75), col="gray")
+
+```
+
+Per la classe ERA si decide di utilizzare quattro componenti principali.
+
+###  Modelli SIMCA
+
+Precediamo ora con la costruzione dei modelli SIMCA per ogni classe.
+
+#### OLO
+
+```{r}
+# Modello SIMCA per la classe OLO
+m_OLO_1 <- simca(X.OLO_1, "OLO", ncomp = 4, cv=1)
+summary(m_OLO_1)
+```
+
+I risultati ottenuti sono simili a quelli ottenuti per la stessa categoria nel dataset wineclass.
+
+```{r}
+
+# posso esplorare i parametri anche graficamente
+
+plot(m_OLO_1)
+
+```
+
+```{r}
+par(mfrow = c(2, 2))
+plotSensitivity(m_OLO_1, show.labels=TRUE)
+plotMisclassified(m_OLO_1, show.labels=TRUE)
+plotPredictions(m_OLO_1$res$cal, show.labels=TRUE, main = "Predictions (cal)")
+plotPredictions(m_OLO_1$res$cv, show.labels=TRUE, main = "Predictions (cv)")
+```
+
+Anche in questo caso i risultati ottenuti sono simili a quelli del dataset wineclass, con la differenza che la performance peggiora in maniera inferiore in cross validation rispetto ai dati considerati in precedenza.
+
+Come fatto in precedenza diminuisco il numero di componenti da considerare e faccio una prediction con un test set.
+
+```{r}
+# posso cambiare il numero di componenti
+
+m_OLO_1<-selectCompNum(m_OLO_1, ncomp = 3)
+
+### Prediction with a test set
+res_OLO_1 <- predict(m_OLO_1, Xt1, ct1)
+
+summary(res_OLO_1) 
+```
+
+In questo caso, per un modello con tre componenti otteniamo cifre di merito simili a quelle ottenute precedentemente con due componenti.
+
+
+```{r}
+par(mfrow = c(2, 2))
+plotSpecificity(res_OLO_1, show.labels = TRUE)
+plotSensitivity(res_OLO_1, show.labels = TRUE)
+plotMisclassified(res_OLO_1, show.labels = TRUE)
+plotPredictions(res_OLO_1)
+```
+
+```{r}
+
+#Matrice di confusione
+show(getConfusionMatrix(res_OLO_1))
+```
+
+In conclusione per la classe OLO si ottengono risultati simili a quelli ottenuti nell'analisi precedente.
+
+#### GR
+
+```{r}
+
+# Modello SIMCA per la classe GR
+
+m_GR_1 <- simca(X.GR_1, "GR", ncomp = 5, cv=1)
+summary(m_GR_1)
+```
+
+In questo caso si ottengono risultati simili in fase di calibration, ma migliori in cross validation rispetto all'analisi fatta sull'altro dataset.
+
+```{r}
+
+# posso esplorare i parametri anche graficamente
+
+plot(m_GR_1)
+```
+
+```{r}
+
+par(mfrow = c(2, 2))
+plotSensitivity(m_GR_1, show.labels = TRUE)
+plotMisclassified(m_GR_1, show.labels = TRUE)
+plotPredictions(m_GR_1$res$cal, main = "Predictions (cal)", show.labels = TRUE)
+plotPredictions(m_GR_1$res$cv, main = "Predictions (cv)", show.labels = TRUE)
+```
+
+Anche in questo caso si procede con un cambiamento di numero di componenti considerate e una prediction con un test set.
+
+```{r}
+# posso cambiare il numero di componenti
+
+m_GR_1<-selectCompNum(m_GR_1, ncomp = 3)
+
+### Prediction with a test set
+res_GR_1 <- predict(m_GR_1, Xt1, ct1)
+
+summary(res_GR_1) 
+```
+
+Nel modello per il dataset wines si ottengono valori più alti per la sensitivity rispetto a quelli ottenuti con wineclass.
+
+```{r}
+
+par(mfrow = c(2, 2))
+plotSpecificity(res_GR_1, show.labels = TRUE)
+plotSensitivity(res_GR_1, show.labels = TRUE)
+plotMisclassified(res_GR_1, show.labels = TRUE)
+plotPredictions(res_GR_1)
+```
+
+In questo caso i valori ottenuti in predizione sono migliori rispetto a quelli ottenuti nell'altra analisi.
+
+```{r}
+#Matrice di confusione
+show(getConfusionMatrix(res_GR_1))
+```
+I risultati ottenuti in questo caso sembrano essere migliori rispetto a quelli ottenuti in precedenza.
+
+#### ERA
+
+```{r}
+# Modello SIMCA per la classe ERA
+
+m_ERA_1 <- simca(X.ERA_1, "ERA", ncomp = 4, cv=1)
+summary(m_ERA_1)
+
+```
+
+In questo caso i valori ottenuti sono simili a quelli precedenti, legermente peggiori, tuttavia ancora molto buoni.
+
+```{r}
+
+# posso esplorare i parametri anche graficamente
+
+plot(m_ERA_1)
+
+```
+
+```{r}
+par(mfrow = c(2, 2))
+plotSensitivity(m_ERA_1)
+plotMisclassified(m_ERA_1)
+plotPredictions(m_ERA_1$res$cal, main = "Predictions (cal)")
+plotPredictions(m_ERA_1$res$cv, main = "Predictions (cv)")
+```
+
+La sensitivity e i misclassified peggiorano con la quarta componente e otteniamo gli stessi valori con due e tre componenti, scendiamo quindi a due componenti considerate e facciamo una prediction con un test set.
+
+```{r}
+
+# posso cambiare il numero di componenti
+
+m_ERA_1<-selectCompNum(m_ERA_1, ncomp = 2)
+
+### Prediction with a test set
+res_ERA_1 <- predict(m_ERA_1, Xt1, ct1)
+
+summary(res_ERA_1)
+```
+
+I risultati ottenuti sono simili, ma leggermente migliori rispetto a quelli dell'altra analisi, con valori di sensitivity e accuracy molto più alti.
+
+```{r}
+
+par(mfrow = c(2, 2))
+plotSpecificity(res_ERA_1, show.labels = TRUE)
+plotSensitivity(res_ERA_1, show.labels = TRUE)
+plotMisclassified(res_ERA_1, show.labels = TRUE)
+plotPredictions(res_ERA_1)
+```
+
+La prediction sembra essere più accurata, infatti tutti gli elementi della classe ERA sono classificati correttamente, rimane però importante l'assegnazione errata di oggetti appartenenti alla classe GR.
+
+```{r}
+
+#Matrice di confusione
+show(getConfusionMatrix(res_ERA_1))
+```
+
+Passiamo ora all'analisi multiclasse.
+
+#### SIMCA multiclasse
+
+```{r}
+
+## SIMCA multiclasse 
+
+mm1 <- simcam(list(m_OLO_1, m_GR_1, m_ERA_1))
+
+summary(mm1)
+```
+
+I risultati ottenuti sono migliori rispetto a quelli per il SIMCA multiclasse precedente.
+
+Vediamo quindi come si comporta il modello in predizione con il test set.
+
+```{r}
+res1 <- predict(mm1, Xt1, ct1)
+plotPredictions(res1) 
+```
+
+La predizione sembra funzionare meglio, soprattutto per la divisione delle categorie ERA e GR.
+
+```{r}
+show(getConfusionMatrix(res1))
+```
+
+```{r}
+#Model distance plot.
+# Se > 3 indica modelli significativamente differenti
+# Se ~1 indica due modelli virtualmente identici
+par(mfrow = c(1, 3))
+plotModelDistance(mm1, 1)
+plotModelDistance(mm1, 2)
+plotModelDistance(mm1, 3)
+```
+
+Notiamo che la dissimilarità tra modelli è aumentata.
+
+```{r}
+#Variable discrimination plot
+par(mfrow = c(1, 3))
+plotDiscriminationPower(mm1, c(1, 3), show.labels = TRUE)
+plotDiscriminationPower(mm1, c(2, 3), show.labels = TRUE)
+plotDiscriminationPower(mm1, c(1, 2), show.labels = TRUE)
+```
+
+Le variabili maggiormente discriminanti rimangono le stesse, a parte per la distinzione tra le classi GR ed ERA, in questo caso, la variabile con un valore discriminante maggiore è OD280/OD315.
+
+```{r}
+#Cooman's Plot - plottato nello spazio degli oggetti
+
+par(mfrow = c(1, 3))
+plotCooman(mm1, c(1, 3), show.labels = TRUE)
+plotCooman(mm1, c(2, 3), show.labels = TRUE)
+plotCooman(mm1, c(1, 2), show.labels = TRUE)
+
+```
+
+Anche dai Cooman plot è possibile vedere che gli oggetti sono stati classificati con un maggior successo rispetto all'analisi precedente.
+
+In conclusione, i risultati ottenuti in questa seconda analisi sono migliori, questo è probabilmente dovuto alla quantità di dati superiore presente nel dataset considerato, che permette di avere un set di training più ampio, quindi più informazioni da cui l'algoritmo può imparare. Una quantità di dati maggiore, se di buona qualità, porta ad ottenere risultati più accurati.

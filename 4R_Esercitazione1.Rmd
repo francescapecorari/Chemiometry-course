@@ -1,0 +1,211 @@
+---
+title: "4R_Esercitazione1"
+author: "Francesca Pecorari"
+date: "2024-01-19"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Studio di "Dataset_whiskey"
+```{r, echo=FALSE}
+originale<-read.table("Dataset_whiskey.txt", header=TRUE,sep="\t")
+
+dataset<-as.matrix(originale[,-c(1,2)])
+
+Type<-originale$type
+Sample<-originale$sample
+```
+## PCA
+
+
+### Screeplot e grafico della varianza cumulata
+
+```{r, echo=FALSE}
+PCA<-prcomp(dataset, center = T, scale = T) # centriamo e normalizziamo 
+
+#-- Estrazione delle varianze e della varianza cumulata
+
+varianze <- PCA$sdev^2
+
+varianze_cum <- cumsum(varianze/sum(varianze)*100)
+
+par(mfrow=c(1:2))
+
+#-- Scree plot
+
+plot(varianze, pch=16, type= "o", main="Scree plot")
+abline(h=1,col="gray")
+
+#-- Varianza cumulata %
+
+plot(varianze_cum, pch=16, type= "o", main="Varianza cumulata %")
+abline(h=c(50,75),col="gray")
+
+```
+
+Dai grafici deduciamo che sono sufficienti 3 componenti per descrivere la varianza del dataset. Osservando lo Scree plot notiamo un gomito tra la terza e la quarta componente, le ultime a mostrare varianza \> 1. 
+Dal plot della varianza cumulata notiamo che tra le 2 e le 3 componenti sono sufficienti a spiegare tra il 50 % e il 75 % della varianza del dataset.
+
+
+### Plot loadings
+
+```{r, echo=FALSE}
+#-- Plot loadings
+
+plot(PCA$rotation[,1], PCA$rotation[,2], pch=16, main= "Plot loadings")
+text(PCA$rotation[,1], PCA$rotation[,2],labels=colnames(dataset),cex=0.8,pos=3)
+abline(h=0,col="gray")
+abline(v=0,col="gray")
+```
+
+Interpretando il grafico, si potrebbe affermare che una minima parte delle variabili originali contribuisce poco alla direzione delle nostre componenti principali, solo le variabili A e E mostrano loadings molto vicini a zero.
+
+Si nota che le variabili L, K e D, G sembrano contribuire in modo simile alla direzione delle componenti, per il resto le variabili non sembrano avere valori di loading simili e questo indica, in generale, che non sono correlate e che avranno effetti diversi sulle componenti.
+
+
+### Plot scores
+
+```{r, echo=FALSE}
+Color<-as.factor(Type)
+levels(Color)<-c("red","blue")
+Color<-as.character(Color)
+
+plot(PCA$x[,1], PCA$x[,2], type="n", main="Plot scores")
+points(PCA$x[,1], PCA$x[,2], col=Color, cex=1.2, pch=16)
+abline(h=0,col="gray")
+abline(v=0,col="gray")
+
+legend("topright", legend=c(1:2), fill=levels(as.factor(Color)))
+```
+
+Il grafico degli Score rappresenta le osservazioni nel nuovo sistema di variabili.
+
+Non ci sono osservazioni molto vicine all'origine, questo indica che non hanno valori prossimi alla media per la maggior parte delle variabili. Potrebbero essere presenti dei valori estremi o outliers per entrambe le categorie di whiskey e la maggior parte delle osservazioni per ogni categoria sembrano essere dissimili rispetto alle osservazioni dell'altra.
+
+
+### Biplot
+
+```{r, echo=FALSE}
+#-- Biplot
+
+biplot(PCA, choices =c(1,2), xlabs=Type, main="Biplot")
+abline(h=0,col="gray")
+abline(v=0,col="gray")
+```
+
+Si nota che i vettori per le variabili L, K, D e I sembrano essere i più lunghi, questo indica che la variabilità delle suddette è ben spiegata dalle componenti.
+Al contrario, per la variabile A la variabilità sarà meglio spiegata da altre PC non utilizzate per costruire questo grafico.
+La variabile E sembra contribuire quasi esclusivamente alla PC1, mentre la variabile A sembra contribuire alla PC2.
+
+
+### Grafici del peso delle variabili sperimentali per ogni PC scelta
+
+
+Le variabili sperimentali che hanno peso maggiore per la PC1 sono: C, E, G, I, H
+
+```{r, echo=FALSE}
+#-- Grafico del peso delle variabili sperimentali per ogni PC scelta
+
+plot(PCA$rotation[,1],type="h",xaxt="n",xlab="",ylab="Weights",main="PC1")
+axis(1,at=seq(1,ncol(dataset),1), labels=colnames(dataset),cex.axis=0.6, las=2)
+abline(h=0,col="gray")
+```
+
+Le variabili sperimentali che hanno peso maggiore per la PC2 sono: F, J, K, L
+
+```{r, echo=FALSE}
+#-- Grafico del peso delle variabili sperimentali per ogni PC scelta
+
+plot(PCA$rotation[,2],type="h",xaxt="n",xlab="",ylab="Weights",main="PC2")
+axis(1,at=seq(1,ncol(dataset),1), labels=colnames(dataset),cex.axis=0.6, las=2)
+abline(h=0,col="gray")
+```
+
+Le variabili sperimentali che hanno peso maggiore per la PC3 sono: B e F
+
+```{r, echo=FALSE}
+#-- Grafico del peso delle variabili sperimentali per ogni PC scelta
+
+plot(PCA$rotation[,3],type="h",xaxt="n",xlab="",ylab="Weights",main="PC3")
+axis(1,at=seq(1,ncol(dataset),1), labels=colnames(dataset),cex.axis=0.6, las=2)
+abline(h=0,col="gray")
+```
+
+
+## HIERARCHICAL CLUSTERING
+
+```{r, echo=FALSE}
+#-- Normalizzazione per variabile (E' NECESSARIA!!!)
+
+dataNorm<-scale(dataset, center = TRUE, scale = TRUE)
+
+#-- Clustering gerarchico (usare il metodo "complete")
+
+Dist<-dist(dataNorm, method="euclidean")
+
+HcC<- hclust(Dist, method="complete")
+```
+
+### Dendrogramma
+
+```{r, echo=FALSE}
+#-- Grafico con il dendrogramma
+
+DendC<-as.dendrogram(HcC)
+plot(DendC,main="Complete")
+```
+
+Nell'interpretazione del dendrogramma si può tenere conto della presenza di un numero definito di raggruppamenti che possa aiutare all'interpretazione dei dati.
+Si può scegliere di "tagliare" i rami a una certa distanza e le osservazioni saranno raggruppate separatamente in base a questa distanza.
+
+```{r, echo=FALSE}
+#--- Selezione numero cluster (provare 2 cluster)
+
+Cut<-cutree(HcC, k= 2)
+
+Newdata<-data.frame(K2= Cut, originale)
+```
+
+```{r, echo=FALSE}
+#--- Esplorazione risultati (verificare se effettivamente si riconoscono i 2 tipi di whiskey)
+
+Box<-boxplot(Newdata$A~Newdata$K2, main="A", col=c("blue", "red"), xlab="K2", ylab = "A")
+
+Cluster1<-Newdata[which(Newdata$K2==1),]
+```
+
+La prova è stata eseguita su due cluster e vediamo che, ad esempio per la variabile A, si ottengono distribuzioni abbastanza simili, con un piccolo numero di outliers.
+
+
+## K-MEANS CLUSTERING
+
+```{r, echo=FALSE}
+#-- Normalizzazione
+
+dataNorm<-scale(dataset, center = TRUE, scale = TRUE)
+
+#-- Kmeans selezione numero cluster
+
+Tot<-NULL
+for(i in c(1:6)) {set.seed(7); km<- kmeans(dataNorm, centers=i,iter.max=50);
+Tot<-c(Tot,km$tot.withinss)}
+
+```
+### Elbow plot
+
+```{r, echo=FALSE}
+#-- Elbow plot
+
+plot(Tot, xlab="K",ylab="Somma dei quadrati delle distanze intra-cluster", pch=16, type="o",
+     main="Elbow plot")
+
+```
+
+Nell' interpretazione dell'elbow plot si cerca un "gomito" in cui la discesa della somma dei quadrati degli errori inizia a rallentare significativamente; idealmente si sceglie il numero di cluster appena prima del punto di gomito. 
+Nel nostro grafico, a seconda di un'interpretazione soggetiva, si potrebbero scegliere sia il valore 3, sia il valore 2, tuttavia, sappiamo che i nostri dati sono divisi in due categorie, quindi sarebbe probabilmte opportuno scegliere 2 come numero ottimale di cluster.
+
+```{r, echo=FALSE}
+
+```
