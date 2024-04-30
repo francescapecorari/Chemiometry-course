@@ -101,7 +101,7 @@ Melanzane	Verdura	93.3	1	0.4	2.6	0.3	0.001	2.4
 Mele_cotogne	Frutta	84.3	0.3	0.7	6.3	15.9	0.001	3.7
 Mele_fresche	Frutta	82.5	0.3	0.1	13.7	10.7	0.1	1.9
 Melone	Frutta	90.1	0.8	0.1	7.4	9.4	0.001	1.7
-Melù	Pesce	80.5	17.4	0.2	0.1	10	0.001	0.001
+MelÃ¹	Pesce	80.5	17.4	0.2	0.1	10	0.001	0.001
 Merluzzo	Pesce	81.5	17	17.1	0.001	0.001	0.001	0.001
 Miglio	Cereali	12.6	11	0.6	67.8	35.2	33.2	0.9
 Mirtilli	Frutta	85	0.9	8.8	10.1	80.3	0.001	3.1
